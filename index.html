@@ -1,79 +1,701 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-<title>AXI BUG HUNT</title>
-<style>
-body{
-background:#050816;
-color:#00f5ff;
-font-family:monospace;
-text-align:center;
-}
-　　　
-canvas{
-border:1px solid #00f5ff;
-margin-top:20px;
-}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AXI β : Bug Hunt Protocol</title>
+  <style>
+    :root{
+      --bg:#050816;
+      --bg2:#0a1030;
+      --cyan:#00f5ff;
+      --cyan2:#7df9ff;
+      --magenta:#ff00aa;
+      --red:#ff4d6d;
+      --green:#00ff99;
+      --white:#dffcff;
+      --panel:rgba(7,12,30,.78);
+      --grid:rgba(0,245,255,.08);
+    }
+
+    *{box-sizing:border-box}
+
+    body{
+      margin:0;
+      font-family:Consolas, "Courier New", monospace;
+      color:var(--white);
+      background:
+        radial-gradient(circle at top, rgba(255,0,170,.10), transparent 30%),
+        radial-gradient(circle at bottom, rgba(0,245,255,.10), transparent 35%),
+        linear-gradient(180deg, var(--bg2), var(--bg));
+      min-height:100vh;
+      overflow:hidden;
+    }
+
+    .wrap{
+      width:min(1200px, 96vw);
+      margin:0 auto;
+      padding:18px 16px 20px;
+    }
+
+    .title{
+      text-align:center;
+      margin:0;
+      color:var(--cyan);
+      font-size:clamp(28px, 4vw, 48px);
+      letter-spacing:2px;
+      text-shadow:0 0 12px rgba(0,245,255,.7);
+    }
+
+    .subtitle{
+      text-align:center;
+      margin:8px 0 16px;
+      color:var(--cyan2);
+      font-size:clamp(12px, 1.5vw, 18px);
+    }
+
+    .layout{
+      display:grid;
+      grid-template-columns:280px 1fr;
+      gap:16px;
+      align-items:start;
+    }
+
+    .panel{
+      background:var(--panel);
+      border:1px solid rgba(0,245,255,.18);
+      border-radius:18px;
+      box-shadow:
+        0 0 24px rgba(0,245,255,.08),
+        inset 0 0 18px rgba(255,0,170,.05);
+      backdrop-filter: blur(8px);
+    }
+
+    .sidebar{
+      padding:16px;
+    }
+
+    .sectionTitle{
+      color:var(--cyan);
+      margin:0 0 12px;
+      font-size:18px;
+      text-shadow:0 0 8px rgba(0,245,255,.45);
+    }
+
+    .stat{
+      margin-bottom:14px;
+    }
+
+    .label{
+      display:flex;
+      justify-content:space-between;
+      font-size:13px;
+      margin-bottom:6px;
+      color:#cfefff;
+    }
+
+    .bar{
+      height:12px;
+      border-radius:999px;
+      background:rgba(255,255,255,.06);
+      overflow:hidden;
+      border:1px solid rgba(255,255,255,.08);
+    }
+
+    .fill{
+      height:100%;
+      width:50%;
+      border-radius:999px;
+      box-shadow:0 0 10px rgba(0,245,255,.35);
+      transition:width .08s linear;
+    }
+
+    .hpFill{ background:linear-gradient(90deg, var(--green), var(--cyan)); }
+    .energyFill{ background:linear-gradient(90deg, var(--cyan), var(--magenta)); }
+    .scoreFill{ background:linear-gradient(90deg, var(--magenta), var(--red)); }
+
+    .terminal{
+      margin-top:12px;
+      background:rgba(0,0,0,.25);
+      border:1px solid rgba(0,245,255,.15);
+      border-radius:12px;
+      padding:12px;
+      min-height:180px;
+      white-space:pre-line;
+      line-height:1.65;
+      font-size:13px;
+      color:#daf8ff;
+      overflow:auto;
+    }
+
+    .tips{
+      margin-top:12px;
+      font-size:12px;
+      line-height:1.7;
+      color:#c7e8ff;
+      opacity:.95;
+    }
+
+    .gamePanel{
+      padding:14px;
+    }
+
+    canvas{
+      width:100%;
+      height:auto;
+      aspect-ratio:16 / 10;
+      display:block;
+      border-radius:16px;
+      border:1px solid rgba(0,245,255,.2);
+      background:
+        radial-gradient(circle at center, rgba(0,245,255,.06), transparent 45%),
+        rgba(3, 8, 24, .95);
+      box-shadow:inset 0 0 32px rgba(0,245,255,.08);
+    }
+
+    .footer{
+      margin-top:12px;
+      text-align:center;
+      font-size:12px;
+      color:#ccecff;
+      opacity:.9;
+    }
+
+    @media (max-width: 920px){
+      .layout{ grid-template-columns:1fr; }
+    }
+  </style>
 </head>
-
 <body>
+  <div class="wrap">
+    <h1 class="title">AXI β : BUG HUNT PROTOCOL</h1>
+    <div class="subtitle">AXIβをちょろ出しした軽量サイバーパンク・ミニシューティング</div>
 
-<h1>AXI TERMINAL : BUG HUNT</h1>
-<p>矢印キーで移動してBUGを集めろ</p>
+    <div class="layout">
+      <aside class="panel sidebar">
+        <h2 class="sectionTitle">SYSTEM STATUS</h2>
 
-<canvas id="game" width="600" height="400"></canvas>
+        <div class="stat">
+          <div class="label"><span>CORE HP</span><span id="hpText">100</span></div>
+          <div class="bar"><div id="hpBar" class="fill hpFill"></div></div>
+        </div>
 
-<script>
+        <div class="stat">
+          <div class="label"><span>ENERGY</span><span id="energyText">100</span></div>
+          <div class="bar"><div id="energyBar" class="fill energyFill"></div></div>
+        </div>
 
-const canvas=document.getElementById("game")
-const ctx=canvas.getContext("2d")
+        <div class="stat">
+          <div class="label"><span>SCORE</span><span id="scoreText">0</span></div>
+          <div class="bar"><div id="scoreBar" class="fill scoreFill"></div></div>
+        </div>
 
-let player={x:100,y:100}
-let bug={x:300,y:200}
+        <div class="stat">
+          <div class="label"><span>WAVE</span><span id="waveText">1</span></div>
+          <div class="bar"><div id="waveBar" class="fill energyFill" style="width:0%"></div></div>
+        </div>
 
-let score=0
+        <div class="terminal" id="log">
+> booting AXI beta core...
+> synchronizing neon shell...
+> enemy signature: BUG swarm
+> mission: survive and purge hostile code
+        </div>
 
-document.addEventListener("keydown",e=>{
+        <div class="tips">
+          MOVE : Arrow Keys / WASD<br>
+          SHOOT : Space<br>
+          RESTART : R<br>
+          <br>
+          AXIβ はまだ未完成。<br>
+          でもBUG掃除くらいならできる。
+        </div>
+      </aside>
 
-if(e.key=="ArrowUp")player.y-=10
-if(e.key=="ArrowDown")player.y+=10
-if(e.key=="ArrowLeft")player.x-=10
-if(e.key=="ArrowRight")player.x+=10
+      <section class="panel gamePanel">
+        <canvas id="game" width="960" height="600"></canvas>
+      </section>
+    </div>
 
-})
+    <div class="footer">
+      GitHub Pages mini game for <strong>kenyuu2143</strong> • AXI Cyber Lab prototype
+    </div>
+  </div>
 
-function game(){
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
 
-ctx.clearRect(0,0,600,400)
+    const hpText = document.getElementById("hpText");
+    const energyText = document.getElementById("energyText");
+    const scoreText = document.getElementById("scoreText");
+    const waveText = document.getElementById("waveText");
+    const hpBar = document.getElementById("hpBar");
+    const energyBar = document.getElementById("energyBar");
+    const scoreBar = document.getElementById("scoreBar");
+    const waveBar = document.getElementById("waveBar");
+    const logEl = document.getElementById("log");
 
-ctx.fillStyle="#00f5ff"
-ctx.fillRect(player.x,player.y,20,20)
+    const state = {
+      keys: {},
+      bullets: [],
+      enemies: [],
+      particles: [],
+      score: 0,
+      hp: 100,
+      energy: 100,
+      wave: 1,
+      killsInWave: 0,
+      targetKillsForWave: 8,
+      shootCooldown: 0,
+      enemySpawnTimer: 0,
+      gameOver: false,
+      time: 0,
+      player: {
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+        r: 16,
+        speed: 4.2,
+        angle: 0
+      }
+    };
 
-ctx.fillStyle="#ff0055"
-ctx.fillRect(bug.x,bug.y,20,20)
+    function addLog(text){
+      logEl.textContent += `\n> ${text}`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
 
-if(
-player.x<bug.x+20 &&
-player.x+20>bug.x &&
-player.y<bug.y+20 &&
-player.y+20>bug.y
-){
-score++
-bug.x=Math.random()*580
-bug.y=Math.random()*380
-}
+    function rand(min, max){
+      return Math.random() * (max - min) + min;
+    }
 
-ctx.fillStyle="white"
-ctx.fillText("Score:"+score,10,20)
+    function clamp(v, min, max){
+      return Math.max(min, Math.min(max, v));
+    }
 
-requestAnimationFrame(game)
+    function spawnEnemy(){
+      const side = Math.floor(Math.random() * 4);
+      let x, y;
 
-}
+      if(side === 0){ x = rand(0, canvas.width); y = -30; }
+      else if(side === 1){ x = canvas.width + 30; y = rand(0, canvas.height); }
+      else if(side === 2){ x = rand(0, canvas.width); y = canvas.height + 30; }
+      else { x = -30; y = rand(0, canvas.height); }
 
-game()
+      const size = rand(12, 22);
+      const speed = rand(0.9, 1.8) + state.wave * 0.12;
 
-</script>
+      state.enemies.push({
+        x, y,
+        r: size,
+        speed,
+        hp: Math.max(1, Math.floor(state.wave / 2)),
+        pulse: rand(0, Math.PI * 2)
+      });
+    }
 
+    function fireBullet(){
+      if(state.shootCooldown > 0 || state.energy < 4 || state.gameOver) return;
+
+      const p = state.player;
+      const dx = Math.cos(p.angle);
+      const dy = Math.sin(p.angle);
+
+      state.bullets.push({
+        x: p.x + dx * 20,
+        y: p.y + dy * 20,
+        vx: dx * 8.5,
+        vy: dy * 8.5,
+        r: 4,
+        life: 70
+      });
+
+      state.energy = clamp(state.energy - 4, 0, 100);
+      state.shootCooldown = 10;
+    }
+
+    function explosion(x, y, color, count=10){
+      for(let i=0; i<count; i++){
+        const angle = rand(0, Math.PI * 2);
+        const speed = rand(1, 4);
+        state.particles.push({
+          x, y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: rand(18, 36),
+          color
+        });
+      }
+    }
+
+    function resetGame(){
+      state.bullets = [];
+      state.enemies = [];
+      state.particles = [];
+      state.score = 0;
+      state.hp = 100;
+      state.energy = 100;
+      state.wave = 1;
+      state.killsInWave = 0;
+      state.targetKillsForWave = 8;
+      state.shootCooldown = 0;
+      state.enemySpawnTimer = 0;
+      state.gameOver = false;
+      state.time = 0;
+      state.player.x = canvas.width / 2;
+      state.player.y = canvas.height / 2;
+      state.player.angle = 0;
+      logEl.textContent =
+`> booting AXI beta core...
+> synchronizing neon shell...
+> enemy signature: BUG swarm
+> mission: survive and purge hostile code`;
+      addLog("system reboot complete");
+      updateHUD();
+    }
+
+    function nextWave(){
+      state.wave += 1;
+      state.killsInWave = 0;
+      state.targetKillsForWave = 8 + state.wave * 3;
+      state.energy = clamp(state.energy + 20, 0, 100);
+      addLog(`wave ${state.wave} detected // bug swarm intensifying`);
+      explosion(state.player.x, state.player.y, "#00f5ff", 22);
+    }
+
+    window.addEventListener("keydown", e => {
+      const key = e.key.toLowerCase();
+      state.keys[key] = true;
+
+      if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(key) || e.key === " "){
+        e.preventDefault();
+      }
+
+      if(key === " "){
+        fireBullet();
+      }
+
+      if(state.gameOver && key === "r"){
+        resetGame();
+      }
+    });
+
+    window.addEventListener("keyup", e => {
+      state.keys[e.key.toLowerCase()] = false;
+    });
+
+    function update(){
+      if(state.gameOver) return;
+
+      state.time += 0.016;
+      if(state.shootCooldown > 0) state.shootCooldown--;
+
+      const p = state.player;
+
+      let dx = 0;
+      let dy = 0;
+
+      if(state.keys["arrowup"] || state.keys["w"]) dy -= 1;
+      if(state.keys["arrowdown"] || state.keys["s"]) dy += 1;
+      if(state.keys["arrowleft"] || state.keys["a"]) dx -= 1;
+      if(state.keys["arrowright"] || state.keys["d"]) dx += 1;
+
+      if(dx !== 0 || dy !== 0){
+        const len = Math.hypot(dx, dy) || 1;
+        p.x += (dx / len) * p.speed;
+        p.y += (dy / len) * p.speed;
+        p.angle = Math.atan2(dy, dx);
+        state.energy = clamp(state.energy - 0.02, 0, 100);
+      }
+
+      p.x = clamp(p.x, p.r, canvas.width - p.r);
+      p.y = clamp(p.y, p.r, canvas.height - p.r);
+
+      state.energy = clamp(state.energy + 0.03, 0, 100);
+
+      state.enemySpawnTimer--;
+      if(state.enemySpawnTimer <= 0){
+        spawnEnemy();
+        state.enemySpawnTimer = Math.max(18, 55 - state.wave * 4);
+      }
+
+      for(let i = state.bullets.length - 1; i >= 0; i--){
+        const b = state.bullets[i];
+        b.x += b.vx;
+        b.y += b.vy;
+        b.life--;
+
+        if(
+          b.life <= 0 ||
+          b.x < -20 || b.x > canvas.width + 20 ||
+          b.y < -20 || b.y > canvas.height + 20
+        ){
+          state.bullets.splice(i, 1);
+        }
+      }
+
+      for(let i = state.enemies.length - 1; i >= 0; i--){
+        const e = state.enemies[i];
+        const angle = Math.atan2(p.y - e.y, p.x - e.x);
+        e.x += Math.cos(angle) * e.speed;
+        e.y += Math.sin(angle) * e.speed;
+        e.pulse += 0.08;
+
+        const distToPlayer = Math.hypot(p.x - e.x, p.y - e.y);
+        if(distToPlayer < p.r + e.r){
+          state.enemies.splice(i, 1);
+          state.hp = clamp(state.hp - 14, 0, 100);
+          explosion(e.x, e.y, "#ff4d6d", 16);
+          addLog("core damaged by BUG intrusion");
+
+          if(state.hp <= 0){
+            state.gameOver = true;
+            addLog("AXI beta core offline // press R to reboot");
+          }
+          continue;
+        }
+
+        for(let j = state.bullets.length - 1; j >= 0; j--){
+          const b = state.bullets[j];
+          const dist = Math.hypot(b.x - e.x, b.y - e.y);
+
+          if(dist < b.r + e.r){
+            state.bullets.splice(j, 1);
+            e.hp -= 1;
+            explosion(b.x, b.y, "#00f5ff", 5);
+
+            if(e.hp <= 0){
+              state.enemies.splice(i, 1);
+              state.score += 100;
+              state.killsInWave += 1;
+              state.energy = clamp(state.energy + 6, 0, 100);
+              explosion(e.x, e.y, "#ff00aa", 14);
+
+              if(Math.random() < 0.35){
+                addLog("BUG purged successfully");
+              }
+
+              if(state.killsInWave >= state.targetKillsForWave){
+                nextWave();
+              }
+            }
+            break;
+          }
+        }
+      }
+
+      for(let i = state.particles.length - 1; i >= 0; i--){
+        const p = state.particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life--;
+
+        if(p.life <= 0){
+          state.particles.splice(i, 1);
+        }
+      }
+
+      updateHUD();
+    }
+
+    function updateHUD(){
+      hpText.textContent = Math.round(state.hp);
+      energyText.textContent = Math.round(state.energy);
+      scoreText.textContent = state.score;
+      waveText.textContent = state.wave;
+
+      hpBar.style.width = `${state.hp}%`;
+      energyBar.style.width = `${state.energy}%`;
+      scoreBar.style.width = `${Math.min((state.score % 1000) / 10, 100)}%`;
+      waveBar.style.width = `${(state.killsInWave / state.targetKillsForWave) * 100}%`;
+    }
+
+    function drawGrid(){
+      ctx.save();
+      ctx.strokeStyle = "rgba(0,245,255,0.08)";
+      ctx.lineWidth = 1;
+
+      const offset = (state.time * 30) % 32;
+
+      for(let x = -32; x < canvas.width + 32; x += 32){
+        ctx.beginPath();
+        ctx.moveTo(x + offset, 0);
+        ctx.lineTo(x + offset, canvas.height);
+        ctx.stroke();
+      }
+
+      for(let y = -32; y < canvas.height + 32; y += 32){
+        ctx.beginPath();
+        ctx.moveTo(0, y + offset);
+        ctx.lineTo(canvas.width, y + offset);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawPlayer(){
+      const p = state.player;
+
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.angle);
+
+      ctx.shadowBlur = 18;
+      ctx.shadowColor = "#00f5ff";
+
+      const pulse = 1 + Math.sin(state.time * 6) * 0.05;
+
+      // outer shell
+      ctx.strokeStyle = "#00f5ff";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, p.r * pulse, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // beta core body
+      ctx.fillStyle = "#091427";
+      ctx.beginPath();
+      ctx.arc(0, 0, p.r * 0.78, 0, Math.PI * 2);
+      ctx.fill();
+
+      // eye / beta mark vibe
+      ctx.fillStyle = "#7df9ff";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 8, 4.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // front wing / pointer
+      ctx.fillStyle = "#ff00aa";
+      ctx.beginPath();
+      ctx.moveTo(p.r + 7, 0);
+      ctx.lineTo(p.r - 5, -6);
+      ctx.lineTo(p.r - 5, 6);
+      ctx.closePath();
+      ctx.fill();
+
+      // little orbit ring to hint AXIβ
+      ctx.strokeStyle = "rgba(255,0,170,.8)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, p.r + 5 + Math.sin(state.time * 5) * 1.5, -0.7, 1.6);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function drawBullets(){
+      for(const b of state.bullets){
+        ctx.save();
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = "#00f5ff";
+        ctx.fillStyle = "#00f5ff";
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    function drawEnemies(){
+      for(const e of state.enemies){
+        const pulse = e.r + Math.sin(e.pulse) * 2;
+
+        ctx.save();
+        ctx.translate(e.x, e.y);
+
+        ctx.shadowBlur = 16;
+        ctx.shadowColor = "#ff4d6d";
+
+        // bug body
+        ctx.fillStyle = "#ff4d6d";
+        ctx.beginPath();
+        ctx.arc(0, 0, pulse, 0, Math.PI * 2);
+        ctx.fill();
+
+        // jagged bug aura
+        ctx.strokeStyle = "#ff00aa";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for(let i = 0; i < 8; i++){
+          const ang = (Math.PI * 2 / 8) * i;
+          const rr = pulse + (i % 2 === 0 ? 7 : 3);
+          const x = Math.cos(ang) * rr;
+          const y = Math.sin(ang) * rr;
+          if(i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+
+        ctx.restore();
+      }
+    }
+
+    function drawParticles(){
+      for(const p of state.particles){
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.life / 36);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, 3, 3);
+        ctx.restore();
+      }
+    }
+
+    function drawMiniHUD(){
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,.28)";
+      ctx.fillRect(14, 14, 220, 78);
+
+      ctx.strokeStyle = "rgba(0,245,255,.28)";
+      ctx.strokeRect(14, 14, 220, 78);
+
+      ctx.fillStyle = "#dffcff";
+      ctx.font = "16px Consolas";
+      ctx.fillText(`HP     : ${Math.round(state.hp)}`, 28, 38);
+      ctx.fillText(`SCORE  : ${state.score}`, 28, 58);
+      ctx.fillText(`WAVE   : ${state.wave}`, 28, 78);
+      ctx.restore();
+    }
+
+    function drawOverlay(){
+      if(!state.gameOver) return;
+
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,.55)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#ff4d6d";
+      ctx.font = "bold 54px Consolas";
+      ctx.fillText("SYSTEM DOWN", canvas.width / 2, canvas.height / 2 - 18);
+
+      ctx.fillStyle = "#dffcff";
+      ctx.font = "24px Consolas";
+      ctx.fillText(`FINAL SCORE : ${state.score}`, canvas.width / 2, canvas.height / 2 + 24);
+      ctx.fillText("Press R to reboot AXI β", canvas.width / 2, canvas.height / 2 + 64);
+      ctx.restore();
+    }
+
+    function render(){
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawGrid();
+      drawParticles();
+      drawEnemies();
+      drawBullets();
+      drawPlayer();
+      drawMiniHUD();
+      drawOverlay();
+    }
+
+    function loop(){
+      update();
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    updateHUD();
+    for(let i = 0; i < 3; i++) spawnEnemy();
+    loop();
+  </script>
 </body>
 </html>
